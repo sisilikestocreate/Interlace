@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interlace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+/* ─── RESET & DESIGN TOKENS ─────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink:       #191714;
+  --ink-2:     #4a4540;
+  --ink-3:     #8a847e;
+  --ink-4:     #c4bdb6;
+  --paper:     #faf8f4;
+  --paper-2:   #f2ede4;
+  --paper-3:   #e8e0d4;
+  --accent:    #c05a20;
+  --accent-2:  #e08050;
+  --accent-bg: #f8ede5;
+  --border:    rgba(25,23,20,.13);
+  --border-2:  rgba(25,23,20,.22);
+  --sh-sm:     0 1px 4px rgba(25,23,20,.07),0 1px 2px rgba(25,23,20,.05);
+  --sh:        0 3px 14px rgba(25,23,20,.09),0 1px 4px rgba(25,23,20,.06);
+  --sh-lg:     0 8px 32px rgba(25,23,20,.12),0 2px 8px rgba(25,23,20,.07);
+  --r:         10px; --r-sm: 6px; --r-pill: 100px;
+  --serif: 'Lora', Georgia, serif;
+  --sans:  'DM Sans', system-ui, sans-serif;
+  --topbar-h:  54px;
+  --bottom-h:  108px;
+}
+html, body {
+  height: 100%; overflow: hidden;
+  background: var(--paper); font-family: var(--sans);
+  color: var(--ink); -webkit-font-smoothing: antialiased;
+}
+
+/* ─── TOPBAR ─────────────────────────────────────────── */
+#topbar {
+  position: fixed; inset: 0 0 auto 0; z-index: 200; height: var(--topbar-h);
+  display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  background: rgba(250,248,244,.95); backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+#logo { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -.3px; flex-shrink: 0; }
+#logo em { font-style: normal; color: var(--accent); }
+.tb-sep { width: 1px; height: 22px; background: var(--border-2); flex-shrink: 0; }
+.tb-field { display: flex; align-items: center; gap: 7px; }
+.tb-label { font-size: 10px; font-weight: 500; letter-spacing: .9px; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+select.tb-ctrl {
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  background: var(--paper-2); border: 1px solid var(--border-2); border-radius: var(--r-sm);
+  padding: 5px 26px 5px 10px; outline: none; transition: border-color .15s;
+  appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%238a847e'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+input.tb-ctrl {
+  font-family: var(--sans); font-size: 13px; color: var(--ink);
+  flex: 1; min-width: 0; max-width: 240px;
+  background: transparent; border: none; border-bottom: 1px solid var(--border-2);
+  border-radius: 0; padding: 4px 2px; outline: none; transition: border-color .15s;
+}
+input.tb-ctrl::placeholder { color: var(--ink-4); font-style: italic; }
+select.tb-ctrl:focus, input.tb-ctrl:focus { border-color: var(--accent); }
+.tb-spacer { flex: 1; }
+#node-count { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+
+.tb-btn {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 500;
+  padding: 6px 13px; border-radius: var(--r-sm); border: 1px solid var(--border-2);
+  background: var(--paper-2); color: var(--ink); cursor: pointer;
+  transition: background .14s, border-color .14s, opacity .14s;
+  white-space: nowrap; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.tb-btn:hover:not(:disabled) { background: var(--paper-3); border-color: var(--ink-3); }
+.tb-btn:disabled { opacity: .35; cursor: default; }
+.tb-btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.tb-btn.primary:hover:not(:disabled) { background: var(--ink-2); }
+
+/* ─── STAGE ──────────────────────────────────────────── */
+#stage {
+  position: fixed; inset: var(--topbar-h) 0 var(--bottom-h) 0;
+  overflow: hidden; cursor: grab; touch-action: none; user-select: none;
+}
+#stage.panning   { cursor: grabbing; }
+#stage.node-drag { cursor: grabbing; }
+
+#world {
+  position: absolute; width: 4000px; height: 4000px;
+  transform-origin: 0 0; will-change: transform;
+}
+
+/* ─── EDGES ──────────────────────────────────────────── */
+#edge-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; overflow: visible;
+}
+.edge { fill: none; stroke-linecap: round; transition: stroke .4s, stroke-width .4s, opacity .4s; }
+.edge.strong  { stroke: var(--ink-2);  stroke-width: 2;   opacity: .75; }
+.edge.medium  { stroke: var(--ink-3);  stroke-width: 1.5; opacity: .6;  }
+.edge.weak    { stroke: var(--ink-4);  stroke-width: 1;   opacity: .45; stroke-dasharray: 5 6; }
+.edge.suggest { stroke: var(--accent-2); stroke-width: 1.5; opacity: .7;
+                stroke-dasharray: 4 5; animation: dash-anim 1.8s linear infinite; }
+@keyframes dash-anim { to { stroke-dashoffset: -18; } }
+
+/* ─── NODES ──────────────────────────────────────────── */
+.node {
+  position: absolute; transform: translate(-50%,-50%);
+  cursor: grab; will-change: left, top;
+  animation: node-pop .3s cubic-bezier(.34,1.56,.64,1) both;
+}
+.node:active { cursor: grabbing; }
+@keyframes node-pop {
+  from { opacity: 0; transform: translate(-50%,-50%) scale(.35); }
+  to   { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+}
+
+.pill {
+  display: inline-flex; align-items: center;
+  padding: 7px 15px; border-radius: var(--r-pill);
+  background: var(--paper); border: 1.5px solid var(--border-2);
+  box-shadow: var(--sh-sm); position: relative;
+  transition: box-shadow .2s, transform .18s, background .2s, border-color .2s;
+  white-space: nowrap;
+}
+.node:hover .pill { box-shadow: var(--sh); transform: scale(1.05); }
+.node.selected .pill { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg), var(--sh); }
+
+.node-label { font-family: var(--serif); font-size: 13.5px; font-weight: 500; color: var(--ink); line-height: 1; }
+
+/* roles */
+.node.is-core .pill  { background: var(--ink); border-color: var(--ink); box-shadow: var(--sh); padding: 10px 20px; }
+.node.is-core .node-label { color: var(--paper); font-size: 15px; font-weight: 600; }
+.node.is-hub  .pill  { background: var(--paper-2); border-width: 2px; border-color: var(--ink-3); }
+
+/* suggestion */
+.node.is-suggest .pill { background: var(--accent-bg); border: 1.5px dashed var(--accent-2); cursor: pointer; }
+.node.is-suggest .node-label { color: var(--accent); font-style: italic; }
+.node.is-suggest:hover .pill { background: var(--accent); border-style: solid; }
+.node.is-suggest:hover .node-label { color: #fff; font-style: normal; }
+
+/* delete badge — shows on selected */
+.node-del {
+  position: absolute; top: -9px; left: -9px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent); color: #fff;
+  font-size: 12px; line-height: 18px; text-align: center; font-weight: 700;
+  opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 2;
+  font-family: var(--sans); cursor: pointer;
+}
+.node.selected .node-del { opacity: 1; pointer-events: auto; }
+
+/* ─── CLUSTER LABELS ─────────────────────────────────── */
+.cluster-lbl {
+  position: absolute; transform: translateX(-50%);
+  font-family: var(--sans); font-size: 10px; font-weight: 500;
+  letter-spacing: 1.1px; text-transform: uppercase;
+  color: var(--ink-3); pointer-events: none;
+  animation: fade-in .5s ease both;
+}
+@keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+
+/* ─── EMPTY STATE ────────────────────────────────────── */
+#empty {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  text-align: center; pointer-events: none; transition: opacity .3s;
+}
+#empty.gone { opacity: 0; pointer-events: none; }
+#empty h2 { font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--ink-3); margin-bottom: 8px; }
+#empty p  { font-size: 13px; color: var(--ink-4); line-height: 1.7; }
+
+/* ─── THINKING OVERLAY ───────────────────────────────── */
+#think-overlay {
+  position: fixed; inset: var(--topbar-h) 0 var(--bottom-h) 0; z-index: 150;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 20px; background: rgba(250,248,244,.72); backdrop-filter: blur(5px);
+  opacity: 0; pointer-events: none; transition: opacity .28s;
+}
+#think-overlay.active { opacity: 1; pointer-events: auto; }
+.think-dots { display: flex; gap: 9px; }
+.think-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent);
+  animation: dot-bounce .9s ease-in-out infinite;
+}
+.think-dot:nth-child(2) { animation-delay: .16s; }
+.think-dot:nth-child(3) { animation-delay: .32s; }
+@keyframes dot-bounce { 0%,80%,100%{transform:scale(.55);opacity:.35} 40%{transform:scale(1);opacity:1} }
+.think-copy { font-family: var(--serif); font-size: 16px; color: var(--ink-2); font-style: italic; }
+
+/* ─── BOTTOM BAR ─────────────────────────────────────── */
+#bottombar {
+  position: fixed; inset: auto 0 0 0; z-index: 200; height: var(--bottom-h);
+  background: rgba(250,248,244,.97); backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 9px; padding: 12px 24px;
+}
+#input-row { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 620px; }
+#word-input {
+  flex: 1; font-family: var(--serif); font-size: 19px; color: var(--ink);
+  background: transparent; border: none; border-bottom: 2px solid var(--ink);
+  padding: 5px 2px; outline: none; transition: border-color .2s;
+}
+#word-input::placeholder { color: var(--ink-4); font-style: italic; }
+#word-input:focus { border-bottom-color: var(--accent); }
+
+
+#sub-row { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 620px; min-height: 26px; }
+#status  { font-size: 12px; color: var(--ink-3); flex: 1; transition: color .25s; }
+#status.busy { color: var(--accent); }
+#chips   { display: flex; gap: 6px; overflow: hidden; }
+.chip {
+  font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: var(--r-pill);
+  background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-2);
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background .14s, color .14s, transform .1s;
+}
+.chip:hover { background: var(--accent); color: #fff; transform: scale(1.05); }
+
+/* ─── ZOOM PANEL ─────────────────────────────────────── */
+#zoom-panel {
+  position: fixed; right: 18px; bottom: calc(var(--bottom-h) + 14px); z-index: 200;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.z-btn {
+  width: 34px; height: 34px; border-radius: var(--r-sm);
+  background: var(--paper); border: 1px solid var(--border-2); box-shadow: var(--sh-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; color: var(--ink-2); cursor: pointer; transition: background .13s;
+}
+.z-btn:hover { background: var(--paper-3); }
+#zoom-pct { font-size: 10.5px; font-weight: 500; color: var(--ink-3); }
+
+/* ─── TOAST ──────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: calc(var(--bottom-h) + 14px); left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); font-size: 12.5px;
+  padding: 7px 16px; border-radius: var(--r-pill); box-shadow: var(--sh);
+  opacity: 0; pointer-events: none; white-space: nowrap; z-index: 300;
+  transition: opacity .22s, bottom .22s;
+}
+#toast.show { opacity: 1; bottom: calc(var(--bottom-h) + 18px); }
+
+/* ─── INLINE SPINNER ─────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: var(--accent);
+  animation: spin .6s linear infinite; vertical-align: middle;
+}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <span id="logo">Inter<em>lace</em></span>
+  <div class="tb-sep"></div>
+  <div class="tb-field">
+    <span class="tb-label">Domain</span>
+    <select id="sel-domain" class="tb-ctrl">
+      <option value="">General</option>
+      <option value="business">Business / Strategy</option>
+      <option value="creative">Creative / Art</option>
+      <option value="research">Research / Academic</option>
+      <option value="product">Product / UX</option>
+      <option value="personal">Personal / Life</option>
+      <option value="tech">Technology</option>
+      <option value="education">Education</option>
+      <option value="writing">Writing / Story</option>
+    </select>
+  </div>
+  <div class="tb-spacer"></div>
+  <span id="node-count">0 nodes</span>
+  <button class="tb-btn" id="btn-suggest" disabled>✦ Suggest gaps</button>
+  <button class="tb-btn" id="btn-clear"   disabled>Clear</button>
+  <button class="tb-btn primary" id="btn-export" disabled>Export PNG</button>
+</div>
+
+<!-- CANVAS -->
+<div id="stage">
+  <div id="world">
+    <svg id="edge-svg"></svg>
+    <div id="empty">
+      <h2>Start typing a thought.</h2>
+      <p>Type a word or idea and press Enter.<br>Connections form as you think.</p>
+    </div>
+  </div>
+</div>
+
+<!-- THINKING OVERLAY -->
+<div id="think-overlay">
+  <div class="think-dots">
+    <div class="think-dot"></div>
+    <div class="think-dot"></div>
+    <div class="think-dot"></div>
+  </div>
+  <div class="think-copy">Finding what's missing…</div>
+</div>
+
+<!-- ZOOM -->
+<div id="zoom-panel">
+  <button class="z-btn" id="btn-zi" title="Zoom in">+</button>
+  <div id="zoom-pct">100%</div>
+  <button class="z-btn" id="btn-zo" title="Zoom out">−</button>
+  <button class="z-btn" id="btn-zf" title="Fit view" style="font-size:13px">⊡</button>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottombar">
+  <div id="input-row">
+    <input id="word-input" type="text" placeholder="Type a word or idea, press Enter…" autocomplete="off" spellcheck="false">
+  </div>
+  <div id="sub-row">
+    <span id="status">Ready — type your first thought</span>
+    <div id="chips"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   THOUGHTWEB — frontend
+   All AI calls go directly to Gemini (browser fetch).
+   No API key ever touches the browser.
+═══════════════════════════════════════════════ */
+
+// ── CONFIG ──────────────────────────────────────
+const WORLD_SIZE = 4000;
+const CX = WORLD_SIZE / 2, CY = WORLD_SIZE / 2;
+const ANALYSIS_DEBOUNCE = 1400; // ms
+const IDEAL_DIST        = 180;
+const REPEL             = 17000;
+const FORCE_ITER        = 85;
+
+// ── STATE ────────────────────────────────────────
+const S = {
+  nodes:     [],   // { id, label, x, y, role, cluster, isSuggest, el }
+  edges:     [],   // { id, a, b, strength, reason, el }
+  suggests:  [],   // suggestion node ids
+  selected:  null,
+  pan:       { on: false, sx: 0, sy: 0 },
+  drag:      { node: null, ox: 0, oy: 0 },
+  tx:        { x: 0, y: 0, k: 1 },
+  seq:       { n: 0, e: 0 },
+  busy:      { analysis: false, suggest: false },
+  timer:     { analysis: null, status: null },
+};
+
+// ── DOM REFS ─────────────────────────────────────
+const stage   = document.getElementById('stage');
+const world   = document.getElementById('world');
+const edgeSvg = document.getElementById('edge-svg');
+const wordInp = document.getElementById('word-input');
+const statusEl= document.getElementById('status');
+const chipsEl = document.getElementById('chips');
+const countEl = document.getElementById('node-count');
+const toastEl = document.getElementById('toast');
+const thinkEl = document.getElementById('think-overlay');
+const emptyEl = document.getElementById('empty');
+
+// ═══════════════════════════════════════════════
+// 1. AI CALL — calls /api/analyze (Vercel backend)
+// Your Gemini key lives on the server, never in browser
+// ═══════════════════════════════════════════════
+async function aiCall(prompt, systemPrompt = '') {
+  let res;
+  try {
+    res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, systemPrompt }),
+    });
+  } catch (networkErr) {
+    throw new Error('NETWORK_BLOCKED');
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || `Server error ${res.status}`);
+  }
+
+  const { result } = await res.json();
+  if (!result) throw new Error('Empty response from server');
+  return result;
+}
+
+function sysPrompt() {
+  const domain = document.getElementById('sel-domain').value || 'general';
+  return `You are a semantic analysis engine for an interactive mindmap tool.
+Domain: ${domain}.
+Always respond with valid JSON only. No explanation, no markdown, no preamble.`;
+}
+
+// ═══════════════════════════════════════════════
+// 2. CANVAS — PAN & ZOOM
+// ═══════════════════════════════════════════════
+function applyTx(animate = false) {
+  const { x, y, k } = S.tx;
+  if (animate) {
+    world.style.transition = 'transform .38s cubic-bezier(.4,0,.2,1)';
+    setTimeout(() => { world.style.transition = ''; }, 420);
+  }
+  world.style.transform = `translate(${x}px,${y}px) scale(${k})`;
+  document.getElementById('zoom-pct').textContent = Math.round(k * 100) + '%';
+}
+
+function initView() {
+  const { clientWidth: vw, clientHeight: vh } = stage;
+  S.tx = { x: vw / 2 - CX, y: vh / 2 - CY, k: 1 };
+  applyTx();
+}
+window.addEventListener('resize', initView);
+
+// Pan
+stage.addEventListener('mousedown', e => {
+  if (e.target.closest('.node') || e.button !== 0) return;
+  S.pan = { on: true, sx: e.clientX - S.tx.x, sy: e.clientY - S.tx.y };
+  stage.classList.add('panning');
+});
+window.addEventListener('mousemove', e => {
+  if (S.pan.on) {
+    S.tx.x = e.clientX - S.pan.sx;
+    S.tx.y = e.clientY - S.pan.sy;
+    applyTx();
+  }
+  if (S.drag.node) {
+    const n = S.drag.node;
+    n.x = (e.clientX - S.tx.x) / S.tx.k - S.drag.ox;
+    n.y = (e.clientY - S.tx.y) / S.tx.k - S.drag.oy;
+    placeEl(n); // edges follow via RAF
+  }
+});
+window.addEventListener('mouseup', () => {
+  S.pan.on = false; S.drag.node = null;
+  stage.classList.remove('panning', 'node-drag');
+});
+
+// Wheel zoom
+stage.addEventListener('wheel', e => {
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+  const r = stage.getBoundingClientRect();
+  const cx = e.clientX - r.left, cy = e.clientY - r.top;
+  S.tx.x = cx - (cx - S.tx.x) * f;
+  S.tx.y = cy - (cy - S.tx.y) * f;
+  S.tx.k = clamp(S.tx.k * f, .08, 3);
+  applyTx();
+}, { passive: false });
+
+// Zoom buttons
+document.getElementById('btn-zi').onclick = () => zoomStep(1.22);
+document.getElementById('btn-zo').onclick = () => zoomStep(1 / 1.22);
+document.getElementById('btn-zf').onclick = fitView;
+
+function zoomStep(f) {
+  const { clientWidth: vw, clientHeight: vh } = stage;
+  S.tx.x = vw / 2 - (vw / 2 - S.tx.x) * f;
+  S.tx.y = vh / 2 - (vh / 2 - S.tx.y) * f;
+  S.tx.k = clamp(S.tx.k * f, .08, 3);
+  applyTx(true);
+}
+
+function fitView() {
+  const vis = S.nodes.filter(n => !n.isSuggest);
+  if (!vis.length) return;
+  const xs = vis.map(n => n.x), ys = vis.map(n => n.y);
+  const pad = 120;
+  const minX = Math.min(...xs) - pad, maxX = Math.max(...xs) + pad;
+  const minY = Math.min(...ys) - pad, maxY = Math.max(...ys) + pad;
+  const { clientWidth: vw, clientHeight: vh } = stage;
+  const k = clamp(Math.min(vw / (maxX - minX), vh / (maxY - minY)) * .88, .1, 2);
+  S.tx = { x: vw / 2 - (minX + maxX) / 2 * k, y: vh / 2 - (minY + maxY) / 2 * k, k };
+  applyTx(true);
+}
+
+// ═══════════════════════════════════════════════
+// 3. NODES
+// ═══════════════════════════════════════════════
+function nodeById(id)  { return S.nodes.find(n => n.id === id); }
+function realNodes()   { return S.nodes.filter(n => !n.isSuggest); }
+
+function makeNode({ label, x, y, role = 'normal', isSuggest = false }) {
+  const id = 'n' + (S.seq.n++);
+  const n  = { id, label, x, y, role, cluster: null, isSuggest, el: null };
+
+  const el  = document.createElement('div');
+  el.className = 'node' +
+    (isSuggest      ? ' is-suggest' : '') +
+    (role === 'core'? ' is-core'    : '') +
+    (role === 'hub' ? ' is-hub'     : '');
+  el.dataset.id = id;
+
+  const pill = document.createElement('div');
+  pill.className = 'pill';
+
+  const lbl = document.createElement('span');
+  lbl.className = 'node-label';
+  lbl.textContent = label;
+  pill.appendChild(lbl);
+
+  const del = document.createElement('div');
+  del.className = 'node-del';
+  del.textContent = '×';
+  del.addEventListener('click', e => { e.stopPropagation(); removeNode(id); });
+  pill.appendChild(del);
+
+  el.appendChild(pill);
+
+  // drag start
+  el.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    selectNode(id);
+    if (!isSuggest) {
+      const wx = (e.clientX - S.tx.x) / S.tx.k;
+      const wy = (e.clientY - S.tx.y) / S.tx.k;
+      S.drag = { node: n, ox: wx - n.x, oy: wy - n.y };
+      stage.classList.add('node-drag');
+    }
+  });
+
+  // click suggestion → accept
+  el.addEventListener('click', e => {
+    if (isSuggest) { e.stopPropagation(); acceptSuggestion(id); }
+  });
+
+  n.el = el;
+  world.appendChild(el);
+  placeEl(n);
+  S.nodes.push(n);
+  if (isSuggest) S.suggests.push(id);
+  return n;
+}
+
+function placeEl(n) {
+  n.el.style.left = n.x + 'px';
+  n.el.style.top  = n.y + 'px';
+}
+
+function smoothPlace() {
+  realNodes().forEach(n => {
+    n.el.style.transition = 'left .45s cubic-bezier(.4,0,.2,1),top .45s cubic-bezier(.4,0,.2,1)';
+    placeEl(n);
+    setTimeout(() => { if (n.el) n.el.style.transition = ''; }, 480);
+  });
+}
+
+function removeNode(id) {
+  const n = nodeById(id); if (!n) return;
+  n.el.remove();
+  S.nodes   = S.nodes.filter(x => x.id !== id);
+  S.suggests= S.suggests.filter(x => x !== id);
+  S.edges.filter(e => e.a === id || e.b === id).forEach(e => e.el?.remove());
+  S.edges   = S.edges.filter(e => e.a !== id && e.b !== id);
+  if (S.selected === id) S.selected = null;
+  refreshUI();
+  scheduleAnalysis();
+}
+
+function selectNode(id) {
+  document.querySelectorAll('.node.selected').forEach(el => el.classList.remove('selected'));
+  S.selected = id;
+  nodeById(id)?.el.classList.add('selected');
+}
+
+function setRole(id, role) {
+  const n = nodeById(id); if (!n) return;
+  n.role = role;
+  n.el.classList.remove('is-core', 'is-hub');
+  if (role === 'core') n.el.classList.add('is-core');
+  if (role === 'hub')  n.el.classList.add('is-hub');
+}
+
+function setLabel(id, label) {
+  const n = nodeById(id); if (!n) return;
+  n.label = label;
+  n.el.querySelector('.node-label').textContent = label;
+}
+
+// keyboard shortcuts
+window.addEventListener('keydown', e => {
+  const tag = document.activeElement?.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT') return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && S.selected) removeNode(S.selected);
+  if (e.key === 'Escape') { selectNode(null); S.selected = null; }
+});
+
+// ═══════════════════════════════════════════════
+// 4. EDGES  +  RAF RENDER LOOP
+// ═══════════════════════════════════════════════
+function makeEdge(a, b, strength, reason = '') {
+  const id  = 'e' + (S.seq.e++);
+  const el  = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  el.classList.add('edge', strength);
+  edgeSvg.appendChild(el);
+  const edge = { id, a, b, strength, reason, el };
+  S.edges.push(edge);
+  return edge;
+}
+
+function clearRealEdges() {
+  // keep suggestion edges, remove real ones
+  S.edges.filter(e => !S.suggests.includes(e.a) && !S.suggests.includes(e.b))
+         .forEach(e => e.el?.remove());
+  S.edges = S.edges.filter(e => S.suggests.includes(e.a) || S.suggests.includes(e.b));
+}
+
+function clearAllEdges() {
+  S.edges.forEach(e => e.el?.remove());
+  S.edges = [];
+}
+
+function setStrength(edge, s) {
+  edge.el.classList.remove('strong', 'medium', 'weak', 'suggest');
+  edge.el.classList.add(s);
+  edge.strength = s;
+}
+
+// The RAF loop — redraws every edge every frame from live node positions.
+// This is why edges stay glued to nodes during drag and layout animation.
+(function rafLoop() {
+  S.edges.forEach(edge => {
+    const na = nodeById(edge.a), nb = nodeById(edge.b);
+    if (!na || !nb) return;
+    const dx = nb.x - na.x, dy = nb.y - na.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const curve = Math.min(len * .16, 38);
+    const mx = (na.x + nb.x) / 2, my = (na.y + nb.y) / 2;
+    const qx = mx - (dy / len) * curve, qy = my + (dx / len) * curve;
+    edge.el.setAttribute('d', `M${na.x},${na.y} Q${qx},${qy} ${nb.x},${nb.y}`);
+  });
+  requestAnimationFrame(rafLoop);
+})();
+
+// ═══════════════════════════════════════════════
+// 5. FORCE LAYOUT
+// ═══════════════════════════════════════════════
+function runForce(iters = FORCE_ITER) {
+  const rn = realNodes();
+  if (rn.length < 2) return;
+
+  for (let it = 0; it < iters; it++) {
+    const F = {};
+    rn.forEach(n => { F[n.id] = { x: 0, y: 0 }; });
+
+    // repulsion between all real nodes
+    for (let i = 0; i < rn.length; i++) {
+      for (let j = i + 1; j < rn.length; j++) {
+        const a = rn[i], b = rn[j];
+        const dx = a.x - b.x, dy = a.y - b.y;
+        const d  = Math.sqrt(dx * dx + dy * dy) || 1;
+        const f  = REPEL / (d * d);
+        F[a.id].x += dx / d * f;  F[a.id].y += dy / d * f;
+        F[b.id].x -= dx / d * f;  F[b.id].y -= dy / d * f;
+      }
+    }
+
+    // spring attraction along edges
+    S.edges.forEach(e => {
+      const na = nodeById(e.a), nb = nodeById(e.b);
+      if (!na || !nb || na.isSuggest || nb.isSuggest) return;
+      const dx = nb.x - na.x, dy = nb.y - na.y;
+      const d  = Math.sqrt(dx * dx + dy * dy) || 1;
+      const target = e.strength === 'strong' ? IDEAL_DIST * .6
+                   : e.strength === 'medium' ? IDEAL_DIST
+                   : IDEAL_DIST * 1.45;
+      const pull = e.strength === 'strong' ? 1.3 : e.strength === 'medium' ? .9 : .45;
+      const f = (d - target) * .03 * pull;
+      F[na.id].x += dx / d * f;  F[na.id].y += dy / d * f;
+      F[nb.id].x -= dx / d * f;  F[nb.id].y -= dy / d * f;
+    });
+
+    // weak gravity toward world center
+    rn.forEach(n => {
+      F[n.id].x += (CX - n.x) * .005;
+      F[n.id].y += (CY - n.y) * .005;
+    });
+
+    // stronger gravity for core node
+    rn.filter(n => n.role === 'core').forEach(n => {
+      F[n.id].x += (CX - n.x) * .13;
+      F[n.id].y += (CY - n.y) * .13;
+    });
+
+    // apply with damping
+    const damp = it < 45 ? 3.8 : 2;
+    rn.forEach(n => {
+      n.x += F[n.id].x / damp;
+      n.y += F[n.id].y / damp;
+    });
+  }
+
+  smoothPlace();
+}
+
+// ═══════════════════════════════════════════════
+// 6. ANALYSIS PIPELINE
+// ═══════════════════════════════════════════════
+function scheduleAnalysis() {
+  clearTimeout(S.timer.analysis);
+  if (realNodes().length < 2) return;
+  S.timer.analysis = setTimeout(runAnalysis, ANALYSIS_DEBOUNCE);
+}
+
+async function runAnalysis() {
+  if (S.busy.analysis || S.busy.suggest) return;
+  const rn = realNodes();
+  if (rn.length < 2) return;
+
+  S.busy.analysis = true;
+  setStatus('Thinking…', true);
+
+  const payload = rn.map(n => ({ id: n.id, label: n.label }));
+  const maxEdges = Math.min(rn.length * 2 + 3, 24);
+
+  const prompt = `Analyze these mindmap concepts and return a JSON object:
+${JSON.stringify(payload)}
+
+Return exactly:
+{
+  "coreId": "id of the single most central concept (must be one of the given ids)",
+  "corrections": [{"id":"...","corrected":"..."}],
+  "clusters": [{"name":"1-3 word label","nodeIds":["id1","id2"]}],
+  "edges": [{"a":"id1","b":"id2","strength":"strong"|"medium"|"weak","reason":"one sentence"}]
+}
+
+Rules:
+- coreId: pick the concept that most others depend on or relate to
+- corrections: fix clear spelling/grammar errors only; omit entry if no fix needed
+- clusters: group semantically related nodes (1–4 clusters, min 2 members each)
+- edges: meaningful links only, max ${maxEdges}; strong=direct/essential, medium=related, weak=peripheral
+- Only use ids from the provided list — never invent ids`;
+
+  try {
+    const result = await aiCall(prompt, sysPrompt());
+
+    // Corrections
+    (result.corrections || []).forEach(c => {
+      const n = nodeById(c.id);
+      if (n && c.corrected && c.corrected !== n.label) {
+        setLabel(c.id, c.corrected);
+        showToast(`Fixed: "${c.corrected}"`);
+      }
+    });
+
+    // Roles
+    realNodes().forEach(n => setRole(n.id, 'normal'));
+    if (result.coreId && nodeById(result.coreId)) setRole(result.coreId, 'core');
+
+    // Clusters
+    (result.clusters || []).forEach(cl => {
+      cl.nodeIds.forEach(id => { const n = nodeById(id); if (n) n.cluster = cl.name; });
+    });
+
+    // Edges
+    clearRealEdges();
+    (result.edges || []).forEach(e => {
+      if (nodeById(e.a) && nodeById(e.b)) makeEdge(e.a, e.b, e.strength, e.reason || '');
+    });
+
+    // Layout + cluster labels
+    runForce();
+    setTimeout(() => drawClusterLabels(result.clusters || []), 500);
+
+    setStatus('Map updated');
+  } catch (err) {
+    console.error('Analysis error:', err);
+    if (err.message === 'NETWORK_BLOCKED') {
+      setStatus('⚠ Open this file in your browser — not the preview');
+    } else if (err.message === 'MODEL_LOADING') {
+      setStatus('AI model warming up — retrying in 20s…', true);
+      setTimeout(() => { S.busy.analysis = false; runAnalysis(); }, 20000);
+      return;
+    } else {
+      setStatus('Analysis error — ' + err.message.slice(0, 60));
+    }
+  }
+  S.busy.analysis = false;
+}
+
+function drawClusterLabels(clusters) {
+  document.querySelectorAll('.cluster-lbl').forEach(el => el.remove());
+  clusters.forEach(cl => {
+    const members = S.nodes.filter(n => cl.nodeIds.includes(n.id) && !n.isSuggest);
+    if (members.length < 2) return;
+    const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
+    const cy = Math.min(...members.map(n => n.y)) - 46;
+    const el = document.createElement('div');
+    el.className = 'cluster-lbl';
+    el.textContent = cl.name;
+    el.style.cssText = `left:${cx}px;top:${cy}px`;
+    world.appendChild(el);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 7. SUGGEST GAPS
+// ═══════════════════════════════════════════════
+async function suggestGaps() {
+  const rn = realNodes();
+  if (rn.length < 3 || S.busy.suggest || S.busy.analysis) return;
+
+  clearSuggestions();
+  S.busy.suggest = true;
+  setSuggestBtn();
+
+  // Show thinking overlay
+  thinkEl.classList.add('active');
+  setStatus('Finding gaps in your map…', true);
+
+  const labels = rn.map(n => n.label);
+
+  const prompt = `Given these mindmap concepts: ${JSON.stringify(labels)}
+
+Identify 3–5 important missing ideas that would make this map more complete.
+Look for: bridging concepts, overlooked perspectives, unstated assumptions, key related domains.
+
+Return JSON:
+{
+  "gaps": [
+    {
+      "label": "short concept label (2–4 words)",
+      "connectsTo": ["exact label from input list"],
+      "reason": "one sentence why this matters"
+    }
+  ]
+}
+
+Use exact strings from the input for connectsTo values.
+If the map is already complete, return { "gaps": [] }.`;
+
+  try {
+    const result = await aiCall(prompt, sysPrompt());
+
+    thinkEl.classList.remove('active');
+
+    if (!result.gaps?.length) {
+      setStatus('Map looks complete — no major gaps found');
+      S.busy.suggest = false;
+      setSuggestBtn();
+      return;
+    }
+
+    result.gaps.forEach((gap, i) => {
+      const angle = (i / result.gaps.length) * Math.PI * 2 - Math.PI / 2;
+      const r     = 300 + Math.random() * 70;
+      const n     = makeNode({
+        label: gap.label,
+        x: CX + Math.cos(angle) * r,
+        y: CY + Math.sin(angle) * r,
+        isSuggest: true,
+      });
+      n.gapReason   = gap.reason;
+      n.connectsTo  = gap.connectsTo;
+
+      // suggestion edges
+      (gap.connectsTo || []).forEach(targetLabel => {
+        const target = rn.find(rn =>
+          rn.label.toLowerCase() === targetLabel.toLowerCase() ||
+          rn.label.toLowerCase().includes(targetLabel.toLowerCase()) ||
+          targetLabel.toLowerCase().includes(rn.label.toLowerCase())
+        );
+        if (target) makeEdge(n.id, target.id, 'suggest', gap.reason);
+      });
+    });
+
+    // quick-add chips
+    chipsEl.innerHTML = '';
+    result.gaps.forEach(gap => {
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.textContent = '+ ' + gap.label;
+      chip.title = gap.reason;
+      chip.onclick = () => {
+        const sn = S.nodes.find(n => n.isSuggest && n.label === gap.label);
+        sn ? acceptSuggestion(sn.id) : addWord(gap.label);
+      };
+      chipsEl.appendChild(chip);
+    });
+
+    setStatus(`${result.gaps.length} gap${result.gaps.length > 1 ? 's' : ''} found — click any to add`);
+
+  } catch (err) {
+    console.error('Suggest error:', err);
+    thinkEl.classList.remove('active');
+    if (err.message === 'NETWORK_BLOCKED') {
+      setStatus('⚠ Open this file in your browser — not the preview');
+    } else if (err.message === 'MODEL_LOADING') {
+      setStatus('AI model warming up — try again in 20s');
+    } else {
+      setStatus('Gap analysis failed — ' + err.message.slice(0, 60));
+    }
+  }
+
+  S.busy.suggest = false;
+  setSuggestBtn();
+}
+
+function acceptSuggestion(id) {
+  const n = nodeById(id);
+  if (!n || !n.isSuggest) return;
+  n.isSuggest = false;
+  n.el.classList.remove('is-suggest');
+  S.suggests = S.suggests.filter(x => x !== id);
+  S.edges.filter(e => (e.a === id || e.b === id)).forEach(e => setStrength(e, 'weak'));
+  chipsEl.innerHTML = '';
+  showToast(`"${n.label}" added`);
+  refreshUI();
+  scheduleAnalysis();
+}
+
+function clearSuggestions() {
+  [...S.suggests].forEach(id => {
+    S.edges.filter(e => e.a === id || e.b === id).forEach(e => { e.el?.remove(); });
+    S.edges = S.edges.filter(e => e.a !== id && e.b !== id);
+    nodeById(id)?.el.remove();
+  });
+  S.nodes   = S.nodes.filter(n => !n.isSuggest);
+  S.suggests= [];
+  chipsEl.innerHTML = '';
+}
+
+// ═══════════════════════════════════════════════
+// 8. ADD WORD
+// ═══════════════════════════════════════════════
+function addWord(raw) {
+  const label = raw.trim();
+  if (!label) return;
+
+  clearSuggestions();
+
+  const spread = Math.min(S.nodes.length * 55, 300);
+  const a = Math.random() * Math.PI * 2;
+  const r = 90 + Math.random() * spread;
+  const n = makeNode({ label, x: CX + Math.cos(a) * r, y: CY + Math.sin(a) * r });
+
+  const rn = realNodes();
+  emptyEl.classList.add('gone');
+  refreshUI();
+
+  if (rn.length === 1) {
+    setRole(n.id, 'core');
+    setStatus('Good — keep adding ideas');
+  } else if (rn.length === 2) {
+    makeEdge(rn[0].id, rn[1].id, 'medium');
+    setStatus('Keep going…');
+    scheduleAnalysis();
+  } else {
+    setStatus('Added…');
+    scheduleAnalysis();
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 9. EXPORT PNG
+// ═══════════════════════════════════════════════
+async function exportPNG() {
+  fitView();
+  await delay(520);
+  setStatus('Rendering export…', true);
+  if (!window.html2canvas) {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  }
+  try {
+    const { clientWidth: vw, clientHeight: vh } = stage;
+    const cv = await html2canvas(stage, {
+      backgroundColor: '#faf8f4', scale: 2, useCORS: true,
+      width: vw, height: vh, windowWidth: vw, windowHeight: vh,
+    });
+    const a = document.createElement('a');
+    a.download = 'thoughtweb.png';
+    a.href = cv.toDataURL('image/png');
+    a.click();
+    showToast('Exported as PNG');
+    setStatus('Exported');
+  } catch (e) {
+    console.error(e);
+    setStatus('Export failed — ' + e.message);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// 10. UI HELPERS
+// ═══════════════════════════════════════════════
+function refreshUI() {
+  const count = realNodes().length;
+  countEl.textContent = count + (count === 1 ? ' node' : ' nodes');
+  const has = count > 0;
+  document.getElementById('btn-clear').disabled  = !has;
+  document.getElementById('btn-export').disabled = !has;
+  setSuggestBtn();
+}
+
+function setSuggestBtn() {
+  const btn = document.getElementById('btn-suggest');
+  const canSuggest = realNodes().length >= 3 && !S.busy.suggest && !S.busy.analysis;
+  btn.disabled = !canSuggest;
+  btn.innerHTML = S.busy.suggest
+    ? '<span class="spinner"></span> Finding…'
+    : '✦ Suggest gaps';
+}
+
+let _toastTimer;
+function showToast(msg) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+}
+
+function setStatus(msg, busy = false) {
+  statusEl.textContent = msg;
+  statusEl.className = busy ? 'busy' : '';
+  clearTimeout(S.timer.status);
+  if (!busy) {
+    S.timer.status = setTimeout(() => {
+      statusEl.textContent = 'Ready';
+      statusEl.className = '';
+    }, 4500);
+  }
+}
+
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const delay = ms => new Promise(r => setTimeout(r, ms));
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+// ═══════════════════════════════════════════════
+// 11. WIRE UP & BOOT
+// ═══════════════════════════════════════════════
+wordInp.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = wordInp.value.trim();
+    if (v) { addWord(v); wordInp.value = ''; }
+  }
+});
+
+document.getElementById('btn-suggest').onclick = suggestGaps;
+document.getElementById('btn-export').onclick  = exportPNG;
+document.getElementById('btn-clear').onclick   = () => {
+  if (!confirm('Clear everything and start over?')) return;
+  S.nodes.forEach(n => n.el?.remove()); S.nodes = [];
+  clearAllEdges(); S.suggests = []; S.selected = null;
+  S.seq = { n: 0, e: 0 };
+  document.querySelectorAll('.cluster-lbl').forEach(e => e.remove());
+  chipsEl.innerHTML = '';
+  emptyEl.classList.remove('gone');
+  refreshUI(); setStatus('Ready');
+};
+
+// Boot
+initView();
+wordInp.focus();
+refreshUI();
+</script>
+</body>
+</html>
