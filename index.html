@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Interlace</title>
+<title>Inter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
 <style>
@@ -40,8 +40,7 @@ html, body { height: 100%; overflow: hidden; background: var(--paper); font-fami
   background: rgba(250,248,244,.96); backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
 }
-#logo { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -.3px; flex-shrink: 0; cursor: default; }
-#logo em { font-style: normal; color: var(--accent); }
+#logo { font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -.3px; flex-shrink: 0; color: var(--ink); }
 .tb-sep { width: 1px; height: 22px; background: var(--border-2); flex-shrink: 0; }
 .tb-field { display: flex; align-items: center; gap: 7px; }
 .tb-label { font-size: 10px; font-weight: 500; letter-spacing: .9px; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
@@ -296,7 +295,7 @@ select.tb-ctrl:focus { border-color: var(--accent); outline: none; }
 
 <!-- TOPBAR -->
 <div id="topbar">
-  <span id="logo">Inter<em>lace</em></span>
+  <span id="logo">Inter</span>
   <div class="tb-sep"></div>
   <div class="tb-field">
     <span class="tb-label">Domain</span>
@@ -363,7 +362,7 @@ select.tb-ctrl:focus { border-color: var(--accent); outline: none; }
 <!-- ONBOARDING MODAL -->
 <div id="onboard-bg">
   <div id="onboard-card">
-    <h2>Welcome to Inter<em>lace</em></h2>
+    <h2>Welcome to Inter</h2>
     <p class="sub">A thinking tool that builds your mindmap as you type — connecting ideas, finding patterns, and surfacing what's missing.</p>
     <ul class="ob-steps">
       <li><span class="ob-num">1</span><span>Type any word or idea below and press <strong>Enter</strong>. Add as many as you like, one at a time.</span></li>
@@ -378,7 +377,7 @@ select.tb-ctrl:focus { border-color: var(--accent); outline: none; }
 
 <script>
 /* ═══════════════════════════════════════════════════
-   INTERLACE
+   INTER
    1. Config & state
    2. AI call
    3. Canvas / pan / zoom
@@ -455,7 +454,7 @@ async function aiCall(prompt, sys = '') {
 
 function sysCtx() {
   const domain = document.getElementById('sel-domain').value || 'general';
-  return `You are a semantic analysis engine for Interlace, a mindmap tool. Domain: ${domain}. Respond with valid JSON only — no markdown, no explanation.`;
+  return `You are a semantic analysis engine for Inter, a mindmap tool. Domain: ${domain}. Respond with valid JSON only — no markdown, no explanation.`;
 }
 
 /* ── 3. CANVAS ──────────────────────────────────── */
@@ -1078,7 +1077,7 @@ async function exportPNG() {
     S.tx=savedTx; applyTx(true);
 
     const a=document.createElement('a');
-    a.download='Interlacemap.png';
+    a.download='Intermap.png';
     a.href=cv.toDataURL('image/png');
     a.click();
     showToast('Map exported as PNG'); setStatus('Exported');
@@ -1089,7 +1088,7 @@ async function exportPNG() {
       fitView(); await delay(400);
       const vw=stage.clientWidth, vh=stage.clientHeight;
       const cv=await html2canvas(stage,{backgroundColor:'#faf8f4',scale:2,useCORS:true,width:vw,height:vh});
-      const a=document.createElement('a'); a.download='Interlacemap.png'; a.href=cv.toDataURL('image/png'); a.click();
+      const a=document.createElement('a'); a.download='Intermap.png'; a.href=cv.toDataURL('image/png'); a.click();
       showToast('Map exported'); setStatus('Exported');
     } catch(e2) { setStatus('Export failed — '+e2.message); }
   }
@@ -1162,7 +1161,7 @@ document.getElementById('btn-clear').onclick   = () => {
 };
 
 // Onboarding — shows once per browser
-const ONBOARD_KEY='interlace_v1';
+const ONBOARD_KEY='inter_v1';
 const obBg=document.getElementById('onboard-bg');
 document.getElementById('onboard-close').onclick=()=>{
   obBg.classList.remove('open'); localStorage.setItem(ONBOARD_KEY,'1'); wordInp.focus();
