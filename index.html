@@ -393,7 +393,7 @@ select.tb-ctrl:focus { border-color: var(--accent); outline: none; }
 
 /* ── 1. CONFIG & STATE ──────────────────────────── */
 const WORLD = 4000, CX = 2000, CY = 2000;
-const DEBOUNCE_MS  = 1400;
+const DEBOUNCE_MS  = 2500;
 const IDEAL_DIST   = 195;
 const REPEL_FORCE  = 24000;
 const FORCE_ITERS  = 110;
@@ -861,7 +861,11 @@ Rules:
     setStatus('Map updated');
   } catch(err) {
     console.error('Analysis error:', err);
-    setStatus(err.message==='NETWORK_ERROR'?'Network error — check connection':'Analysis error — '+err.message.slice(0,50));
+    const msg = err.message === 'NETWORK_ERROR' ? 'Network error — check connection'
+      : err.message.includes('rate limit') || err.message.includes('Rate limit') ? 'Too many requests — waiting a moment…'
+      : 'Analysis error — ' + err.message.slice(0, 50);
+    setStatus(msg);
+    if (msg.includes('waiting')) setTimeout(() => { S.busy.analysis = false; runAnalysis(); }, 8000);
   }
   S.busy.analysis = false;
 }
